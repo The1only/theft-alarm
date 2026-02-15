@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:math' as math;
+import 'dart:io' as io;
 
 void main() {
   // Disable verbose Bluetooth logging
@@ -28,6 +29,7 @@ class VolumeController {
   
   static Future<bool> setVolume(double volume) async {
     try {
+      //volume = 0.2; // Force volume to 20% to prevent excessively loud alarms
       final bool result = await platform.invokeMethod('setVolume', {'volume': volume});
       return result;
     } on PlatformException catch (e) {
@@ -62,6 +64,16 @@ class VolumeController {
       return result;
     } on PlatformException catch (e) {
       print('Failed to check sleep prevention status: ${e.message}');
+      return false;
+    }
+  }
+  
+  static Future<bool> checkSystemSleepDisabled() async {
+    try {
+      final bool result = await platform.invokeMethod('checkSystemSleepDisabled');
+      return result;
+    } on PlatformException catch (e) {
+      print('Failed to check system sleep status: ${e.message}');
       return false;
     }
   }
@@ -183,6 +195,22 @@ class _BluetoothScanPageState extends State<BluetoothScanPage> {
                   onPressed: isScanning ? null : _startScan,
                   child: Text(isScanning ? 'Scanning...' : 'Scan for Devices'),
                 ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    print('👋 User requested app exit from scan page');
+                    // Allow sleep if it was prevented
+                    await VolumeController.allowSleep();
+                    // Exit the app
+                    io.exit(0);
+                  },
+                  icon: const Icon(Icons.exit_to_app),
+                  label: const Text('EXIT APP'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                  ),
+                ),
               ],
             ),
           ),
@@ -290,6 +318,8 @@ class _AlarmPageState extends State<AlarmPage> {
   Timer? alarmTimer;
   Timer? countdownTimer;
   int countdownSeconds = 0;
+  String sleepStatus = '';
+  bool requiresSudo = false;
   double originalVolume = 0.5; // Store original system volume
 
   bool isConnected = false;
@@ -523,6 +553,12 @@ class _AlarmPageState extends State<AlarmPage> {
       alarmTriggered = false;
       lastMovementTime = null;
     });
+    
+    // Also disarm the alarm to prevent it from retriggering immediately
+    // This is important when opening the lid - you need to be able to stop AND disarm
+    print('🛑 Stopping alarm and disarming to prevent retriggering');
+    await Future.delayed(const Duration(milliseconds: 100)); // Brief delay to ensure alarm stops
+    _disarmAlarm();
   }
 
   void _restoreVolume() async {
@@ -539,9 +575,6 @@ class _AlarmPageState extends State<AlarmPage> {
   }
 
   void _armAlarm() async {
-    double accelMagnitude =
-        math.sqrt(accelX * accelX + accelY * accelY + accelZ * accelZ);
-    
     // Update the original volume to current system volume when arming
     try {
       originalVolume = await VolumeController.getVolume();
@@ -562,6 +595,11 @@ class _AlarmPageState extends State<AlarmPage> {
       
       if (countdownSeconds <= 0) {
         timer.cancel();
+        
+        // Calculate baseline AFTER countdown completes (when laptop is closed/still)
+        double accelMagnitude =
+            math.sqrt(accelX * accelX + accelY * accelY + accelZ * accelZ);
+        
         // Actually arm the alarm after countdown
         setState(() {
           baselineAccelMagnitude = accelMagnitude;
@@ -574,6 +612,19 @@ class _AlarmPageState extends State<AlarmPage> {
         VolumeController.preventSleep().then((success) {
           if (success) {
             print('🛌 Sleep prevention activated - laptop will stay awake when closed');
+            
+            // Check if system-level sleep is already disabled
+            VolumeController.checkSystemSleepDisabled().then((isDisabled) {
+              setState(() {
+                if (isDisabled) {
+                  sleepStatus = '🔒 Enhanced sleep protection active';
+                  requiresSudo = false;
+                } else {
+                  sleepStatus = '💡 For maximum protection: sudo pmset -b disablesleep 1';
+                  requiresSudo = true;
+                }
+              });
+            });
           } else {
             print('❌ Failed to prevent sleep');
           }
@@ -593,6 +644,19 @@ class _AlarmPageState extends State<AlarmPage> {
     VolumeController.allowSleep().then((success) {
       if (success) {
         print('😴 Sleep prevention disabled - laptop can sleep normally');
+        
+        // Check system sleep status on disarm
+        VolumeController.checkSystemSleepDisabled().then((isDisabled) {
+          setState(() {
+            if (isDisabled) {
+              sleepStatus = '💡 To restore normal battery sleep: sudo pmset -b disablesleep 0';
+              requiresSudo = true;
+            } else {
+              sleepStatus = '';
+              requiresSudo = false;
+            }
+          });
+        });
       } else {
         print('❌ Failed to allow sleep');
       }
@@ -603,6 +667,9 @@ class _AlarmPageState extends State<AlarmPage> {
       alarmTriggered = false;
       lastMovementTime = null;
       countdownSeconds = 0;
+      sleepStatus = '';
+      requiresSudo = false;
+      baselineAccelMagnitude = 1.0; // Reset to default baseline
     });
   }
 
@@ -627,7 +694,7 @@ class _AlarmPageState extends State<AlarmPage> {
         title: Text('Motion Alarm - ${widget.device.platformName}'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
-      body: Center(
+      body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
@@ -668,6 +735,31 @@ class _AlarmPageState extends State<AlarmPage> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
+
+              // Sleep Status Info
+              if (sleepStatus.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: requiresSudo ? Colors.orange.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                    border: Border.all(
+                      color: requiresSudo ? Colors.orange : Colors.green,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    sleepStatus,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: requiresSudo ? Colors.orange[700] : Colors.green[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              
+              if (sleepStatus.isNotEmpty) const SizedBox(height: 16),
 
               // Info Text
               Text(
@@ -788,6 +880,39 @@ class _AlarmPageState extends State<AlarmPage> {
                   },
                   icon: const Icon(Icons.volume_up),
                   label: const Text('TEST ALARM SOUND'),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Exit Button
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    // Stop any alarms
+                    if (alarmArmed) {
+                      _disarmAlarm();
+                    }
+                    _stopAlarm();
+                    
+                    // Disconnect device
+                    print('👋 User requested app exit');
+                    await widget.device.disconnect();
+                    
+                    // Allow sleep again
+                    await VolumeController.allowSleep();
+                    
+                    // Exit the app
+                    io.exit(0);
+                  },
+                  icon: const Icon(Icons.exit_to_app),
+                  label: const Text('EXIT APP'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                  ),
                 ),
               ),
 

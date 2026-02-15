@@ -1,0 +1,236 @@
+#!/bin/bash
+# Alarm System Launcher with Automatic Sleep Management
+# Handles sleep prevention setup and cleanup automatically
+
+# Debug: Start logging immediately
+echo "$(date): Script started" > /tmp/alarm_debug.log
+
+set -e  # Exit on any error
+
+echo "🚨 Alarm System Launcher"
+echo "======================="
+echo "$(date): Launcher started" >> /tmp/alarm_debug.log
+
+# Check for admin privileges and authenticate upfront
+echo "🔐 Admin Authentication Required"
+echo "   This app requires administrator privileges to manage system sleep settings"
+echo ""
+
+# Function to authenticate using GUI if needed
+authenticate_admin() {
+    echo "$(date): authenticate_admin() called" >> /tmp/alarm_debug.log
+    
+    # Test if we can run sudo commands without password
+    echo "$(date): Testing sudo -n" >> /tmp/alarm_debug.log
+    if sudo -n true 2>/dev/null; then
+        echo "✅ Admin privileges confirmed"
+        echo "$(date): sudo -n succeeded" >> /tmp/alarm_debug.log
+        return 0
+    fi
+    
+    echo "$(date): sudo -n failed, need authentication" >> /tmp/alarm_debug.log
+    
+    # Check if we're running in a GUI environment (no terminal)
+    if [[ ! -t 0 ]] || [[ -z "$TERM" ]] || [[ "$TERM" == "dumb" ]]; then
+        echo "🖥️  GUI mode detected - using system authentication dialog"
+        echo "$(date): GUI mode detected, using osascript" >> /tmp/alarm_debug.log
+        
+        # Use osascript to prompt for admin password and immediately set pmset
+        echo "$(date): Calling osascript for authentication and sleep prevention" >> /tmp/alarm_debug.log
+        if osascript -e 'do shell script "pmset -b disablesleep 1" with administrator privileges' 2>>/tmp/alarm_debug.log; then
+            echo "✅ GUI authentication successful"
+            echo "$(date): osascript authentication and pmset succeeded" >> /tmp/alarm_debug.log
+            return 0
+        else
+            echo "❌ GUI authentication cancelled or failed"
+            echo "$(date): osascript authentication failed" >> /tmp/alarm_debug.log
+            return 1
+        fi
+    else
+        # Terminal mode - use regular sudo prompt
+        echo "🔑 Please enter your administrator password:"
+        echo "$(date): Terminal mode, using sudo -v" >> /tmp/alarm_debug.log
+        if sudo -v; then
+            echo "✅ Terminal authentication successful" 
+            echo "$(date): Terminal sudo -v succeeded" >> /tmp/alarm_debug.log
+            return 0
+        else
+            echo "❌ Terminal authentication failed"
+            echo "$(date): Terminal sudo -v failed" >> /tmp/alarm_debug.log
+            return 1
+        fi
+    fi
+}
+
+# Perform authentication
+echo "$(date): Starting authentication" >> /tmp/alarm_debug.log
+if ! authenticate_admin; then
+    echo "$(date): Authentication failed" >> /tmp/alarm_debug.log
+    echo "❌ Admin authentication failed. Cannot proceed without admin rights."
+    echo "   The sleep prevention features require administrator privileges."
+    exit 1
+fi
+
+# Extend sudo timeout for the duration of this script
+echo "$(date): Authentication successful, extending sudo" >> /tmp/alarm_debug.log
+
+# For GUI mode, we don't need to extend sudo since osascript handles it differently
+if [[ ! -t 0 ]] || [[ -z "$TERM" ]] || [[ "$TERM" == "dumb" ]]; then
+    echo "$(date): GUI mode - skipping sudo -v" >> /tmp/alarm_debug.log
+else
+    # Only extend sudo in terminal mode
+    sudo -v
+    echo "$(date): sudo -v completed" >> /tmp/alarm_debug.log
+fi
+
+echo ""
+
+# Function to restore sleep on exit
+restore_sleep() {
+    echo ""
+    echo "🔄 Restoring normal sleep behavior..."
+    if sudo pmset -b disablesleep 0; then
+        echo "✅ Normal battery sleep restored"
+    else
+        echo "⚠️  Failed to restore sleep - you may need to run: sudo pmset -b disablesleep 0"
+    fi
+    echo "👋 Alarm system shutdown complete"
+}
+
+# Set up trap to restore sleep on exit, interrupt, or termination
+trap restore_sleep EXIT INT TERM
+
+echo "$(date): Setting up sleep prevention" >> /tmp/alarm_debug.log
+echo "🔒 Setting up enhanced sleep prevention..."
+echo "   This requires admin privileges to prevent sleep on battery power"
+
+# Check if we're in GUI mode - if so, pmset was already executed during auth
+if [[ ! -t 0 ]] || [[ -z "$TERM" ]] || [[ "$TERM" == "dumb" ]]; then
+    echo "✅ Sleep prevention already enabled during authentication"
+    echo "$(date): GUI mode - sleep already disabled during auth" >> /tmp/alarm_debug.log
+else
+    # Terminal mode - need to run pmset now
+    if sudo pmset -b disablesleep 1; then
+        echo "✅ Sleep prevention enabled - laptop will stay awake when closed"
+        echo "$(date): Sleep prevention enabled" >> /tmp/alarm_debug.log
+    else
+        echo "❌ Failed to enable sleep prevention"
+        echo "$(date): Sleep prevention failed" >> /tmp/alarm_debug.log
+        echo "   The app will still work but may not function with closed lid"
+    fi
+fi
+
+echo ""
+echo "🚀 Launching Flutter alarm app..."
+echo "   Press Ctrl+C to stop the app and restore normal sleep behavior"
+echo ""
+
+# Launch the Flutter app
+echo "$(date): Changing to script directory" >> /tmp/alarm_debug.log
+cd "$(dirname "$0")"
+
+# If running from app bundle, change to the correct directory
+if [[ "$0" == *".app/Contents/MacOS/"* ]]; then
+    echo "$(date): Running from app bundle, changing directory" >> /tmp/alarm_debug.log
+    # Running from app bundle - go back to the project root
+    cd "../../../"
+    echo "📁 Running from app bundle, switched to project directory: $(pwd)"
+    echo "$(date): Changed to directory: $(pwd)" >> /tmp/alarm_debug.log
+fi
+
+# Use the full path to Flutter that we know works
+FLUTTER_PATH="/tmp/flutter/bin/flutter"
+
+# Check if Flutter exists at the expected location
+if [[ ! -f "$FLUTTER_PATH" ]]; then
+    echo "❌ Flutter not found at $FLUTTER_PATH"
+    echo "$(date): Flutter not found at $FLUTTER_PATH" >> /tmp/alarm_debug.log
+    echo "   Please ensure Flutter is installed correctly"
+    exit 1
+fi
+
+echo "$(date): Flutter found, proceeding to launch section" >> /tmp/alarm_debug.log
+
+echo "📱 Starting Flutter app..."
+
+# Debug: Write status to a debug file
+echo "$(date): Script reached app launch section" >> /tmp/alarm_debug.log
+
+# Get project directory - use current directory if we already changed to it
+PROJECT_DIR="$(pwd)"
+echo "$(date): Using project directory: $PROJECT_DIR" >> /tmp/alarm_debug.log
+
+# Check for release build first
+RELEASE_APP="$PROJECT_DIR/build/macos/Build/Products/Release/Alarm.app"
+echo "$(date): Checking for release at: $RELEASE_APP" >> /tmp/alarm_debug.log
+
+if [[ -d "$RELEASE_APP" ]]; then
+    echo "🚀 Launching Alarm System (Release Version)..."
+    echo "$(date): Found release build at $RELEASE_APP" >> /tmp/alarm_debug.log
+    
+    # Launch the release app
+    open "$RELEASE_APP"
+    
+    # Wait for the app to close
+    echo "⏳ Waiting for Alarm System to close..."
+    echo "$(date): Waiting for app to close" >> /tmp/alarm_debug.log
+    
+    # Give it a moment to start
+    sleep 2
+    
+    # Wait for the app process to end
+    while pgrep -f "Alarm.app" > /dev/null 2>&1; do
+        sleep 1
+    done
+    
+    echo "$(date): App closed, restoring sleep" >> /tmp/alarm_debug.log
+    echo ""
+    echo "🔄 Restoring sleep settings..."
+    echo "⚠️  Admin authentication required to restore sleep settings"
+    
+    # Restore sleep settings
+    osascript -e 'do shell script "pmset -b disablesleep 0" with administrator privileges' && \
+        echo "✅ Sleep settings restored" || \
+        echo "❌ Failed to restore sleep - you may need to run: sudo pmset -b disablesleep 0"
+    
+    echo "$(date): Sleep restoration complete" >> /tmp/alarm_debug.log
+    echo ""
+    echo "👋 Alarm System closed"
+    
+else
+    # Fall back to debug mode if release not found
+    echo "⚠️  Release build not found, falling back to debug mode..."
+    echo "$(date): Release build not found, using Flutter debug mode" >> /tmp/alarm_debug.log
+    
+    # For GUI mode, we MUST open Terminal for Flutter to build properly
+    if [[ ! -t 0 ]] || [[ -z "$TERM" ]] || [[ "$TERM" == "dumb" ]]; then
+        echo "🖥️  GUI mode detected - opening Terminal for Flutter..."
+        
+        # Check if Flutter exists
+        if [[ ! -f "/tmp/flutter/bin/flutter" ]]; then
+            echo "❌ Flutter not found at /tmp/flutter/bin/flutter"
+            echo "$(date): Flutter not found" >> /tmp/alarm_debug.log
+            exit 1
+        fi
+        
+        # Open a new Terminal window with Flutter
+        osascript <<EOF
+tell application "Terminal"
+    do script "cd '$PROJECT_DIR' && echo '🚨 Flutter Alarm System (Debug)' && echo '======================' && echo '' && /tmp/flutter/bin/flutter run -d macos; echo ''; echo '🔄 Restoring sleep settings...'; echo '⚠️  Admin authentication required to restore sleep settings'; osascript -e 'do shell script \"pmset -b disablesleep 0\" with administrator privileges' && echo '✅ Sleep settings restored.' || echo '❌ Failed to restore sleep - you may need to run: sudo pmset -b disablesleep 0'; echo ''; echo 'Press Enter to close this window...' && read"
+    activate
+end tell
+EOF
+        
+        echo "✅ Terminal opened with Flutter app"
+        echo "$(date): Terminal opened successfully" >> /tmp/alarm_debug.log
+        
+        # Main script exits here - Terminal will handle the rest
+        exit 0
+        
+    else
+        # Terminal mode - run directly with full output
+        echo "🔧 Running in terminal mode..."
+        echo "$(date): Terminal mode" >> /tmp/alarm_debug.log
+        /tmp/flutter/bin/flutter run -d macos
+    fi
+fi

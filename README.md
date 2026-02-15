@@ -8,6 +8,8 @@ A sophisticated Flutter-based theft alarm system that uses Witmotion WT9011DCL I
 - **Witmotion IMU Support**: Full support for WT9011DCL IMU sensor via Bluetooth LE
 - **Smart Volume Control**: Automatically saves current volume, sets to maximum during alarm, then restores original
 - **Car Alarm Sound**: High-impact looping alarm sound with 5-second continuation after movement stops
+- **Sleep Prevention**: Keeps laptop awake when alarm is armed, allowing closed-lid monitoring 
+- **4-Second Countdown**: User-friendly countdown before arming provides time to close laptop
 - **Cross-Platform**: Native implementation for macOS with iOS/Android support
 - **Intelligent Bluetooth**: Proper adapter state handling eliminates need to scan twice
 
@@ -60,6 +62,56 @@ dependencies:
 
 ## 📖 Usage
 
+### 🚀 **Best Option: Desktop App** 
+
+Double-click the **Alarm System.app** for one-click operation:
+```bash
+# Create the desktop app (one-time setup):
+./create_app_bundle.sh
+
+# Then just double-click "Alarm System.app" to launch!
+```
+
+The app automatically handles sleep prevention setup and cleanup.
+
+### ⭐ **Alternative: Command Line Launcher** 
+
+Simply run the launcher script that handles everything automatically:
+```bash
+./run.sh
+```
+
+This script will:
+- ✅ Enable sleep prevention (`sudo pmset -b disablesleep 1`)
+- ✅ Launch the Flutter alarm app
+- ✅ Automatically restore normal sleep when you exit (`sudo pmset -b disablesleep 0`)
+- ✅ Handle cleanup even if interrupted with Ctrl+C
+
+### Other Methods
+
+### Option 1: For Reliable Closed-Lid Operation
+
+**Step 1: Start Sleep Prevention Helper**
+```bash
+# In one terminal window:
+./alarm_sleep_helper.sh
+```
+
+**Step 2: Launch Alarm App**
+```bash  
+# In another terminal:
+flutter run -d macos
+```
+
+**Step 3: Normal Operation**
+- Connect to your Witmotion WT9011DCL sensor
+- Arm the alarm (4-second countdown begins)
+- Close your MacBook lid safely
+- System stays awake and monitors motion
+- Alarm sounds through built-in speakers if triggered
+
+### Option 2: Standard Operation (App-Only)
+
 ### 1. Bluetooth Setup
 - Launch the app and tap **"Scan for Devices"**
 - Select your Witmotion WT9011DCL device from the list
@@ -67,8 +119,10 @@ dependencies:
 
 ### 2. Motion Alarm Operation
 - **ARM**: Tap "ARM ALARM" button to activate motion detection
+  - 4-second countdown provides time to close laptop
   - System captures current accelerometer baseline
   - Volume is saved for later restoration
+  - Sleep prevention automatically activated
 - **TRIGGER**: Movement above 0.045G threshold triggers car alarm
   - Volume automatically sets to maximum
   - Car alarm sound plays with looping
@@ -76,11 +130,17 @@ dependencies:
 - **DISARM**: Tap "DISARM ALARM" to deactivate
   - Stops any active alarm
   - Restores original system volume
+  - Sleep prevention automatically disabled
 
 ### 3. Volume Control Features
 - **Auto-save**: Current volume captured on app start and when arming
 - **Maximum during alarm**: System volume set to 100% during alarm
 - **Smart restore**: Original volume level restored after alarm
+
+### 4. Sleep Prevention
+- **Automatic**: Activates when alarm is armed
+- **Multiple Methods**: Uses IOKit power management + system settings
+- **Clean Shutdown**: Automatically restores normal sleep when disarmed
 
 ## ⚙️ Configuration
 

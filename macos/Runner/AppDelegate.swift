@@ -5,26 +5,38 @@ import IOKit.pwr_mgt
 
 // Sleep prevention controller
 class SleepPrevention {
-    private var assertionID: IOPMAssertionID = 0
+    private var systemSleepAssertionID: IOPMAssertionID = 0
+    private var displaySleepAssertionID: IOPMAssertionID = 0
     private var isPreventingSleep = false
     
     func preventSleep() -> Bool {
         guard !isPreventingSleep else { return true }
         
         let reasonForActivity = "Alarm system is monitoring for motion" as CFString
-        let result = IOPMAssertionCreateWithName(
-            kIOPMAssertPreventUserIdleSystemSleep as CFString,
+        
+        // Prevent system sleep (for closed lid)
+        let systemResult = IOPMAssertionCreateWithName(
+            "NoIdleSleepAssertion" as CFString,
             IOPMAssertionLevel(kIOPMAssertionLevelOn),
             reasonForActivity,
-            &assertionID
+            &systemSleepAssertionID
         )
         
-        if result == kIOReturnSuccess {
+        // Also prevent display sleep to be safe
+        let displayResult = IOPMAssertionCreateWithName(
+            "PreventUserIdleDisplaySleep" as CFString,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            reasonForActivity,
+            &displaySleepAssertionID
+        )
+        
+        if systemResult == kIOReturnSuccess {
             isPreventingSleep = true
             print("🛌 Sleep prevention enabled - laptop will stay awake when closed")
+            print("🛌 System sleep assertion: \(systemResult), Display assertion: \(displayResult)")
             return true
         } else {
-            print("❌ Failed to prevent sleep: \(result)")
+            print("❌ Failed to prevent sleep - System: \(systemResult), Display: \(displayResult)")
             return false
         }
     }
@@ -32,14 +44,17 @@ class SleepPrevention {
     func allowSleep() -> Bool {
         guard isPreventingSleep else { return true }
         
-        let result = IOPMAssertionRelease(assertionID)
-        if result == kIOReturnSuccess {
+        let systemResult = IOPMAssertionRelease(systemSleepAssertionID)
+        let displayResult = IOPMAssertionRelease(displaySleepAssertionID)
+        
+        if systemResult == kIOReturnSuccess {
             isPreventingSleep = false
-            assertionID = 0
+            systemSleepAssertionID = 0
+            displaySleepAssertionID = 0
             print("😴 Sleep prevention disabled - laptop can sleep normally")
             return true
         } else {
-            print("❌ Failed to release sleep assertion: \(result)")
+            print("❌ Failed to release sleep assertions - System: \(systemResult), Display: \(displayResult)")
             return false
         }
     }
@@ -48,9 +63,44 @@ class SleepPrevention {
         return isPreventingSleep
     }
     
+    // System-level sleep disable detection (no admin privileges needed)
+    func checkSystemSleepDisabled() -> Bool {
+        let task = Process()
+        task.launchPath = "/usr/bin/pmset"
+        task.arguments = ["-g"]
+        
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+            
+            if task.terminationStatus == 0 {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8) ?? ""
+                
+                // Check for both SleepDisabled and disablesleep settings
+                let isSleepDisabled = output.contains("SleepDisabled          1") || 
+                                     output.contains("disablesleep 1") ||
+                                     output.contains("sleep prevented by")
+                
+                print(isSleepDisabled ? "🔒 System sleep is currently prevented" : "⚠️ System can sleep normally")
+                return isSleepDisabled
+            } else {
+                print("❌ Failed to check system sleep status")
+                return false
+            }
+        } catch {
+            print("❌ Error checking pmset status: \(error)")
+            return false
+        }
+    }
+    
     deinit {
         if isPreventingSleep {
-            IOPMAssertionRelease(assertionID)
+            IOPMAssertionRelease(systemSleepAssertionID)
+            IOPMAssertionRelease(displaySleepAssertionID)
         }
     }
 }
@@ -157,6 +207,9 @@ class AppDelegate: FlutterAppDelegate {
       case "isPreventingSleep":
         let isActive = self?.sleepPrevention.isPreventingSystemSleep() ?? false
         result(isActive)
+      case "checkSystemSleepDisabled":
+        let isDisabled = self?.sleepPrevention.checkSystemSleepDisabled() ?? false
+        result(isDisabled)
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -191,7 +244,8 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-    return true
+    // Don't terminate when window closes - needed for closed-lid operation
+    return false
   }
 
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
