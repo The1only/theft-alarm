@@ -332,6 +332,8 @@ class _AlarmPageState extends State<AlarmPage> {
   DateTime? lastMovementTime;
   Timer? alarmTimer;
   Timer? countdownTimer;
+  Timer? tamperDetectionTimer; // Check for sensor disconnect/tampering
+  DateTime? lastDataReceivedTime; // Track when we last received sensor data
   int countdownSeconds = 0;
   String sleepStatus = '';
   bool requiresSudo = false;
@@ -434,6 +436,9 @@ class _AlarmPageState extends State<AlarmPage> {
 
       // Type 0x61: Combined packet (20 bytes)
       if (type == 0x61 && data.length == 20) {
+        // Update last data received time for tamper detection
+        lastDataReceivedTime = DateTime.now();
+        
         // Extract 9 little-endian signed 16-bit integers starting at byte 2
         // vals[0-2]: AX, AY, AZ (accelerometer)
         // vals[3-5]: GX, GY, GZ (gyroscope)
@@ -647,6 +652,9 @@ class _AlarmPageState extends State<AlarmPage> {
           countdownSeconds = 0;
         });
         
+        // Start tamper detection - check if sensor stops sending data
+        _startTamperDetection();
+        
         // Prevent laptop from sleeping while alarm is armed
         VolumeController.preventSleep().then((success) {
           if (success) {
@@ -677,6 +685,8 @@ class _AlarmPageState extends State<AlarmPage> {
     alarmTimer = null;
     countdownTimer?.cancel();
     countdownTimer = null;
+    tamperDetectionTimer?.cancel();
+    tamperDetectionTimer = null;
     await audioPlayer.stop();
     
     // Restore volume if it was changed (in case alarm was triggered)
@@ -715,10 +725,41 @@ class _AlarmPageState extends State<AlarmPage> {
     });
   }
 
+  void _startTamperDetection() {
+    lastDataReceivedTime = DateTime.now();
+    print('🔍 Tamper detection started - monitoring sensor connection');
+    
+    // Check every 500ms if we've received data in the last 2 seconds
+    tamperDetectionTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      if (!alarmArmed) {
+        timer.cancel();
+        return;
+      }
+      
+      if (lastDataReceivedTime != null) {
+        final timeSinceData = DateTime.now().difference(lastDataReceivedTime!);
+        
+        if (timeSinceData.inMilliseconds > 2000) {
+          // No data for 2 seconds - sensor disconnected or tampered
+          timer.cancel();
+          
+          if (!alarmTriggered) {
+            print('⚠️ TAMPER DETECTED! No sensor data for ${timeSinceData.inSeconds} seconds');
+            setState(() {
+              alarmTriggered = true;
+            });
+            _playAlarm();
+          }
+        }
+      }
+    });
+  }
+
   @override
   void dispose() {
     alarmTimer?.cancel();
     countdownTimer?.cancel();
+    tamperDetectionTimer?.cancel();
     audioPlayer.dispose();
     characteristicSubscription?.cancel();
     widget.device.disconnect();
