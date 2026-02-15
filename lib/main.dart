@@ -29,7 +29,7 @@ class VolumeController {
   
   static Future<bool> setVolume(double volume) async {
     try {
-      volume = 0.2; // Force volume to 20% to prevent excessively loud alarms
+      //volume = 0.2; // Force volume to 20% to prevent excessively loud alarms
       final bool result = await platform.invokeMethod('setVolume', {'volume': volume});
       return result;
     } on PlatformException catch (e) {
@@ -678,6 +678,9 @@ class _AlarmPageState extends State<AlarmPage> {
     countdownTimer?.cancel();
     countdownTimer = null;
     await audioPlayer.stop();
+    
+    // Restore volume if it was changed (in case alarm was triggered)
+    _restoreVolume();
     
     // Allow laptop to sleep normally again
     VolumeController.allowSleep().then((success) {
