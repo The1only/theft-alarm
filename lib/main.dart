@@ -258,6 +258,8 @@ class _AlarmPageState extends State<AlarmPage> {
   DateTime? lastAlarmCheck;
   DateTime? lastMovementTime;
   Timer? alarmTimer;
+  Timer? countdownTimer;
+  int countdownSeconds = 0;
   double originalVolume = 0.5; // Store original system volume
 
   bool isConnected = false;
@@ -518,27 +520,47 @@ class _AlarmPageState extends State<AlarmPage> {
       print('⚠️ Failed to capture volume on arm: $e');
     }
     
+    // Start 4-second countdown
     setState(() {
-      baselineAccelMagnitude = accelMagnitude;
-      alarmArmed = true;
-      alarmTriggered = false;
+      countdownSeconds = 4;
+    });
+    
+    countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        countdownSeconds--;
+      });
+      
+      if (countdownSeconds <= 0) {
+        timer.cancel();
+        // Actually arm the alarm after countdown
+        setState(() {
+          baselineAccelMagnitude = accelMagnitude;
+          alarmArmed = true;
+          alarmTriggered = false;
+          countdownSeconds = 0;
+        });
+      }
     });
   }
 
   void _disarmAlarm() async {
     alarmTimer?.cancel();
     alarmTimer = null;
+    countdownTimer?.cancel();
+    countdownTimer = null;
     await audioPlayer.stop();
     setState(() {
       alarmArmed = false;
       alarmTriggered = false;
       lastMovementTime = null;
+      countdownSeconds = 0;
     });
   }
 
   @override
   void dispose() {
     alarmTimer?.cancel();
+    countdownTimer?.cancel();
     audioPlayer.dispose();
     characteristicSubscription?.cancel();
     widget.device.disconnect();
@@ -598,16 +620,18 @@ class _AlarmPageState extends State<AlarmPage> {
               Text(
                 alarmTriggered
                     ? 'Movement detected!\nAlarm will stop 5 sec after movement ends'
-                    : alarmArmed
-                        ? 'Monitoring for movement...\nThreshold: ${movementThreshold.toStringAsFixed(2)}G'
-                        : 'Arm the alarm to monitor for movement',
+                    : countdownSeconds > 0
+                        ? 'Arming in ${countdownSeconds} seconds...\nClose your computer now!'
+                        : alarmArmed
+                            ? 'Monitoring for movement...\nThreshold: ${movementThreshold.toStringAsFixed(2)}G'
+                            : 'Arm the alarm to monitor for movement',
                 style: const TextStyle(fontSize: 16, color: Colors.grey),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 48),
 
               // Control Buttons
-              if (!alarmArmed)
+              if (!alarmArmed && countdownSeconds == 0)
                 SizedBox(
                   width: double.infinity,
                   height: 60,
@@ -621,6 +645,26 @@ class _AlarmPageState extends State<AlarmPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
                       foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+
+              if (countdownSeconds > 0)
+                SizedBox(
+                  width: double.infinity,
+                  height: 60,
+                  child: ElevatedButton.icon(
+                    onPressed: null, // Disabled during countdown
+                    icon: Icon(Icons.timer, size: 32),
+                    label: Text(
+                      'ARMING IN ${countdownSeconds}s',
+                      style: TextStyle(fontSize: 20),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amber,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.amber,
+                      disabledForegroundColor: Colors.white,
                     ),
                   ),
                 ),
