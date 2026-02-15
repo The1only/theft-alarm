@@ -29,7 +29,7 @@ class VolumeController {
   
   static Future<bool> setVolume(double volume) async {
     try {
-      //volume = 0.2; // Force volume to 20% to prevent excessively loud alarms
+      volume = 0.2; // Force volume to 20% to prevent excessively loud alarms
       final bool result = await platform.invokeMethod('setVolume', {'volume': volume});
       return result;
     } on PlatformException catch (e) {
@@ -74,6 +74,21 @@ class VolumeController {
       return result;
     } on PlatformException catch (e) {
       print('Failed to check system sleep status: ${e.message}');
+      return false;
+    }
+  }
+}
+
+// Authentication controller for biometric/password authentication
+class AuthenticationController {
+  static const platform = MethodChannel('authentication');
+  
+  static Future<bool> authenticate(String reason) async {
+    try {
+      final bool result = await platform.invokeMethod('authenticate', {'reason': reason});
+      return result;
+    } on PlatformException catch (e) {
+      print('Authentication failed: ${e.message}');
       return false;
     }
   }
@@ -542,6 +557,30 @@ class _AlarmPageState extends State<AlarmPage> {
   }
 
   void _stopAlarm() async {
+    // Require authentication to stop alarm
+    print('🔐 Requesting authentication to stop alarm...');
+    
+    bool authenticated = await AuthenticationController.authenticate(
+      'Authenticate to stop the alarm'
+    );
+    
+    if (!authenticated) {
+      print('❌ Authentication failed - alarm continues');
+      // Show error message to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Authentication required to stop alarm'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return; // Don't stop alarm if authentication fails
+    }
+    
+    print('✅ Authentication successful - stopping alarm');
+    
     alarmTimer?.cancel();
     alarmTimer = null;
     await audioPlayer.stop();

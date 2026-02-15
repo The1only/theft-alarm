@@ -9,7 +9,7 @@ class MainFlutterWindow: NSWindow {
     
     // Set minimum window size to show all content including connection status
     self.setContentSize(NSSize(width: 800, height: 800))
-    self.minSize = NSSize(width: 600, height: 700)
+    self.minSize = NSSize(width: 600, height: 800)
     
     // Center window on screen
     self.center()

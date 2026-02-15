@@ -2,6 +2,7 @@ import Cocoa
 import FlutterMacOS
 import AVFoundation
 import IOKit.pwr_mgt
+import LocalAuthentication
 
 // Sleep prevention controller
 class SleepPrevention {
@@ -213,6 +214,45 @@ class AppDelegate: FlutterAppDelegate {
       default:
         result(FlutterMethodNotImplemented)
       }
+    }
+    
+    // Authentication channel for biometric/password authentication
+    let authChannel = FlutterMethodChannel(name: "authentication", binaryMessenger: controller.engine.binaryMessenger)
+    authChannel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
+      switch call.method {
+      case "authenticate":
+        if let args = call.arguments as? [String: Any],
+           let reason = args["reason"] as? String {
+          self?.authenticateUser(reason: reason, result: result)
+        } else {
+          result(FlutterError(code: "INVALID_ARGUMENT", message: "Reason required", details: nil))
+        }
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+  
+  private func authenticateUser(reason: String, result: @escaping FlutterResult) {
+    let context = LAContext()
+    var error: NSError?
+    
+    // Check if biometric authentication is available
+    if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
+      context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, authError in
+        DispatchQueue.main.async {
+          if success {
+            print("✅ Authentication successful")
+            result(true)
+          } else {
+            print("❌ Authentication failed: \(authError?.localizedDescription ?? "Unknown error")")
+            result(false)
+          }
+        }
+      }
+    } else {
+      print("❌ Authentication not available: \(error?.localizedDescription ?? "Unknown error")")
+      result(false)
     }
   }
   
