@@ -12,7 +12,7 @@ void main() {
   runApp(const MotionAlarmApp());
 }
 
-// Platform channel for native volume control
+// Platform channel for native volume control and sleep prevention
 class VolumeController {
   static const platform = MethodChannel('volume_control');
   
@@ -32,6 +32,36 @@ class VolumeController {
       return result;
     } on PlatformException catch (e) {
       print('Failed to set volume: ${e.message}');
+      return false;
+    }
+  }
+  
+  static Future<bool> preventSleep() async {
+    try {
+      final bool result = await platform.invokeMethod('preventSleep');
+      return result;
+    } on PlatformException catch (e) {
+      print('Failed to prevent sleep: ${e.message}');
+      return false;
+    }
+  }
+  
+  static Future<bool> allowSleep() async {
+    try {
+      final bool result = await platform.invokeMethod('allowSleep');
+      return result;
+    } on PlatformException catch (e) {
+      print('Failed to allow sleep: ${e.message}');
+      return false;
+    }
+  }
+  
+  static Future<bool> isPreventingSleep() async {
+    try {
+      final bool result = await platform.invokeMethod('isPreventingSleep');
+      return result;
+    } on PlatformException catch (e) {
+      print('Failed to check sleep prevention status: ${e.message}');
       return false;
     }
   }
@@ -539,6 +569,15 @@ class _AlarmPageState extends State<AlarmPage> {
           alarmTriggered = false;
           countdownSeconds = 0;
         });
+        
+        // Prevent laptop from sleeping while alarm is armed
+        VolumeController.preventSleep().then((success) {
+          if (success) {
+            print('🛌 Sleep prevention activated - laptop will stay awake when closed');
+          } else {
+            print('❌ Failed to prevent sleep');
+          }
+        });
       }
     });
   }
@@ -549,6 +588,16 @@ class _AlarmPageState extends State<AlarmPage> {
     countdownTimer?.cancel();
     countdownTimer = null;
     await audioPlayer.stop();
+    
+    // Allow laptop to sleep normally again
+    VolumeController.allowSleep().then((success) {
+      if (success) {
+        print('😴 Sleep prevention disabled - laptop can sleep normally');
+      } else {
+        print('❌ Failed to allow sleep');
+      }
+    });
+    
     setState(() {
       alarmArmed = false;
       alarmTriggered = false;
@@ -564,6 +613,10 @@ class _AlarmPageState extends State<AlarmPage> {
     audioPlayer.dispose();
     characteristicSubscription?.cancel();
     widget.device.disconnect();
+    
+    // Ensure sleep is allowed when app closes
+    VolumeController.allowSleep();
+    
     super.dispose();
   }
 

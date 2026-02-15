@@ -1,6 +1,59 @@
 import Cocoa
 import FlutterMacOS
 import AVFoundation
+import IOKit.pwr_mgt
+
+// Sleep prevention controller
+class SleepPrevention {
+    private var assertionID: IOPMAssertionID = 0
+    private var isPreventingSleep = false
+    
+    func preventSleep() -> Bool {
+        guard !isPreventingSleep else { return true }
+        
+        let reasonForActivity = "Alarm system is monitoring for motion" as CFString
+        let result = IOPMAssertionCreateWithName(
+            kIOPMAssertPreventUserIdleSystemSleep as CFString,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            reasonForActivity,
+            &assertionID
+        )
+        
+        if result == kIOReturnSuccess {
+            isPreventingSleep = true
+            print("🛌 Sleep prevention enabled - laptop will stay awake when closed")
+            return true
+        } else {
+            print("❌ Failed to prevent sleep: \(result)")
+            return false
+        }
+    }
+    
+    func allowSleep() -> Bool {
+        guard isPreventingSleep else { return true }
+        
+        let result = IOPMAssertionRelease(assertionID)
+        if result == kIOReturnSuccess {
+            isPreventingSleep = false
+            assertionID = 0
+            print("😴 Sleep prevention disabled - laptop can sleep normally")
+            return true
+        } else {
+            print("❌ Failed to release sleep assertion: \(result)")
+            return false
+        }
+    }
+    
+    func isPreventingSystemSleep() -> Bool {
+        return isPreventingSleep
+    }
+    
+    deinit {
+        if isPreventingSleep {
+            IOPMAssertionRelease(assertionID)
+        }
+    }
+}
 
 // Volume controller embedded in AppDelegate
 class VolumeController {
@@ -60,6 +113,7 @@ class VolumeController {
 class AppDelegate: FlutterAppDelegate {
   private var audioPlayer: AVAudioPlayer?
   private var volumeController = VolumeController()
+  private var sleepPrevention = SleepPrevention()
   
   override func applicationDidFinishLaunching(_ notification: Notification) {
     let controller: FlutterViewController = mainFlutterWindow?.contentViewController as! FlutterViewController
@@ -94,6 +148,15 @@ class AppDelegate: FlutterAppDelegate {
         } else {
           result(FlutterError(code: "INVALID_ARGUMENT", message: "Volume value required", details: nil))
         }
+      case "preventSleep":
+        let success = self?.sleepPrevention.preventSleep() ?? false
+        result(success)
+      case "allowSleep":
+        let success = self?.sleepPrevention.allowSleep() ?? false
+        result(success)
+      case "isPreventingSleep":
+        let isActive = self?.sleepPrevention.isPreventingSystemSleep() ?? false
+        result(isActive)
       default:
         result(FlutterMethodNotImplemented)
       }
