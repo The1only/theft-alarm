@@ -29,7 +29,7 @@ class VolumeController {
   
   static Future<bool> setVolume(double volume) async {
     try {
-      volume = 0.2; // Force volume to 20% to prevent excessively loud alarms
+      // volume = 0.2; // Force volume to 20% to prevent excessively loud alarms
       final bool result = await platform.invokeMethod('setVolume', {'volume': volume});
       return result;
     } on PlatformException catch (e) {
