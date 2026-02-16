@@ -29,7 +29,7 @@ class VolumeController {
   
   static Future<bool> setVolume(double volume) async {
     try {
-      //volume = 0.2; // Force volume to 20% to prevent excessively loud alarms
+      volume = 0.2; // Force volume to 20% to prevent excessively loud alarms
       final bool result = await platform.invokeMethod('setVolume', {'volume': volume});
       return result;
     } on PlatformException catch (e) {
@@ -322,12 +322,17 @@ class _AlarmPageState extends State<AlarmPage> {
   // Accelerometer data
   double accelX = 0, accelY = 0, accelZ = 0;
 
+  // Attitude data
+  double attX = 0, attY = 0, attZ = 0;
+
   // Alarm variables
   bool alarmArmed = false;
   bool alarmTriggered = false;
   final AudioPlayer audioPlayer = AudioPlayer();
   double baselineAccelMagnitude = 1.0;
+  double baselineAttMagnitude = 1.0;
   double movementThreshold = 0.045; // Above RMS noise, sensitive to small movements
+  double movementAttThreshold = 0.1;
   DateTime? lastAlarmCheck;
   DateTime? lastMovementTime;
   Timer? alarmTimer;
@@ -454,6 +459,11 @@ class _AlarmPageState extends State<AlarmPage> {
         accelY = vals[1] / 32768.0 * 16;
         accelZ = vals[2] / 32768.0 * 16;
 
+        // Parse accelerometer (vals 0-2)
+        attX = vals[6] / 32768.0 * 16; // ±16g range
+        attY = vals[7] / 32768.0 * 16;
+        attZ = vals[8] / 32768.0 * 16;
+
         // Check for movement if alarm is armed
         if (alarmArmed) {
           _checkMovement(DateTime.now());
@@ -487,10 +497,17 @@ class _AlarmPageState extends State<AlarmPage> {
     double accelMagnitude =
         math.sqrt(accelX * accelX + accelY * accelY + accelZ * accelZ);
 
+    // Calculate acceleration magnitude
+    double attMagnitude =
+        math.sqrt(attX * attX + attY * attY + attZ * attZ);
+
     // Check if movement exceeds threshold
     double movement = (accelMagnitude - baselineAccelMagnitude).abs();
+    double attmovement = (attMagnitude - baselineAttMagnitude).abs();
 
-    if (movement > movementThreshold) {
+    print('Att: ${movement} - ${attmovement}');
+
+    if ((movement > movementThreshold) || (attmovement > movementAttThreshold) ) {
       lastMovementTime = now;
 
       if (!alarmTriggered) {
@@ -644,9 +661,14 @@ class _AlarmPageState extends State<AlarmPage> {
         double accelMagnitude =
             math.sqrt(accelX * accelX + accelY * accelY + accelZ * accelZ);
         
+        // Calculate acceleration magnitude
+        double attMagnitude =
+            math.sqrt(attX * attX + attY * attY + attZ * attZ);
+
         // Actually arm the alarm after countdown
         setState(() {
           baselineAccelMagnitude = accelMagnitude;
+          baselineAttMagnitude = attMagnitude;
           alarmArmed = true;
           alarmTriggered = false;
           countdownSeconds = 0;
@@ -722,6 +744,7 @@ class _AlarmPageState extends State<AlarmPage> {
       sleepStatus = '';
       requiresSudo = false;
       baselineAccelMagnitude = 1.0; // Reset to default baseline
+      baselineAttMagnitude = 1.0; // Reset to default baseline
     });
   }
 
