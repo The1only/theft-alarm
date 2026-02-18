@@ -1,6 +1,14 @@
 #!/bin/bash
 # Create macOS App Bundle for Alarm System
 
+echo "� Building Flutter app (Release)..."
+flutter build macos --release
+
+if [ $? -ne 0 ]; then
+    echo "❌ Flutter build failed!"
+    exit 1
+fi
+
 echo "📦 Creating Alarm System.app bundle..."
 
 # Create app bundle structure
@@ -10,6 +18,23 @@ mkdir -p "Alarm System.app/Contents/Resources"
 # Copy the run script as the main executable
 cp run.sh "Alarm System.app/Contents/MacOS/Alarm System"
 chmod +x "Alarm System.app/Contents/MacOS/Alarm System"
+
+# Embed the built Flutter app
+if [ -d "build/macos/Build/Products/Release/Alarm.app" ]; then
+    echo "📱 Embedding Flutter app..."
+    cp -R build/macos/Build/Products/Release/Alarm.app "Alarm System.app/Contents/Resources/"
+    
+    # Re-sign the embedded app with ad-hoc signature so macOS re-evaluates permissions
+    echo "🔐 Re-signing embedded app..."
+    codesign --force --deep --sign - "Alarm System.app/Contents/Resources/Alarm.app" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        echo "✅ App re-signed successfully"
+    else
+        echo "⚠️  Re-signing failed, but continuing..."
+    fi
+else
+    echo "⚠️  Warning: Release build not found, run.sh will fall back to Flutter debug mode"
+fi
 
 # Copy Info.plist
 echo "📄 Adding app metadata..."

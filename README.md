@@ -1,11 +1,11 @@
 # Theft Alarm - Flutter Motion Detection System
 
-A sophisticated Flutter-based theft alarm system that uses Witmotion WT9011DCL IMU sensor for motion detection via Bluetooth. Features native volume control and loud car alarm sounds to deter theft.
+A sophisticated Flutter-based theft alarm system that uses Alarm-sensor WT9011DCL IMU sensor for motion detection via Bluetooth. Features native volume control and loud car alarm sounds to deter theft.
 
 ## 🚨 Features
 
 - **Motion Detection**: Real-time accelerometer-based movement detection with configurable sensitivity
-- **Witmotion IMU Support**: Full support for WT9011DCL IMU sensor via Bluetooth LE
+- **Alarm-sensor IMU Support**: Full support for WT9011DCL IMU sensor via Bluetooth LE
 - **Smart Volume Control**: Automatically saves current volume, sets to maximum during alarm, then restores original
 - **Car Alarm Sound**: High-impact looping alarm sound with 5-second continuation after movement stops
 - **Sleep Prevention**: Keeps laptop awake when alarm is armed, allowing closed-lid monitoring 
@@ -25,7 +25,7 @@ A sophisticated Flutter-based theft alarm system that uses Witmotion WT9011DCL I
 - Dart SDK
 - **Xcode** (for macOS/iOS development)
 - **Android Studio** (for Android development)
-- **Witmotion WT9011DCL IMU sensor** (or compatible device)
+- **Alarm-sensor WT9011DCL IMU sensor** (or compatible device)
 
 ## 📦 Dependencies
 
@@ -104,7 +104,7 @@ flutter run -d macos
 ```
 
 **Step 3: Normal Operation**
-- Connect to your Witmotion WT9011DCL sensor
+- Connect to your Alarm-sensor WT9011DCL sensor
 - Arm the alarm (4-second countdown begins)
 - Close your MacBook lid safely
 - System stays awake and monitors motion
@@ -114,7 +114,7 @@ flutter run -d macos
 
 ### 1. Bluetooth Setup
 - Launch the app and tap **"Scan for Devices"**
-- Select your Witmotion WT9011DCL device from the list
+- Select your Alarm-sensor WT9011DCL device from the list
 - Tap **"Connect"** to establish Bluetooth connection
 
 ### 2. Motion Alarm Operation
@@ -186,7 +186,7 @@ web/                     # Web platform files (limited functionality)
 ### Bluetooth Configuration
 - **Auto-initialization**: Bluetooth adapter state monitoring
 - **Error Handling**: User-friendly error messages for Bluetooth issues
-- **Device Filtering**: Automatic Witmotion device detection
+- **Device Filtering**: Automatic Alarm-sensor device detection
 
 ## 🚨 Alarm System Details
 
@@ -237,7 +237,7 @@ This project is open source and available under the [MIT License](LICENSE).
 
 ## 🙏 Acknowledgments
 
-- **Witmotion**: For IMU sensor hardware and documentation
+- **Alarm-sensor**: For IMU sensor hardware and documentation
 - **Flutter Blue Plus**: For reliable Bluetooth LE implementation
 - **AudioPlayers**: For cross-platform audio functionality
 

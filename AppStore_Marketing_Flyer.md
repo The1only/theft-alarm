@@ -18,7 +18,7 @@
 
 ## ⚡ **LIGHTNING-FAST SETUP - ZERO LEARNING CURVE**
 
-1. **Connect** your Witmotion sensor via Bluetooth
+1. **Connect** your Alarm-sensor via Bluetooth
 2. **ARM** the system with one tap  
 3. **RELAX** knowing you're protected 24/7
 
@@ -47,7 +47,7 @@
 - Continuous alarm until biometric authentication
 
 ### **🔗 SEAMLESS BLUETOOTH CONNECTIVITY**
-- Professional Witmotion WT9011DCL sensor support
+- Professional Alarm-sensor WT9011DCL sensor support
 - Reliable 40-byte packet processing
 - Auto-reconnection technology
 - Real-time sensor status display
@@ -127,7 +127,7 @@
 ### **LIMITED TIME: EARLY ADOPTER SPECIAL**
 ~~$49.99~~ **NOW JUST $19.99**
 
-**🎁 BONUS: FREE Witmotion sensor included with app purchase!**
+**🎁 BONUS: FREE Alarm-sensor included with app purchase!**
 
 ---
 
@@ -203,4 +203,4 @@ Due to overwhelming demand and limited sensor inventory, we can only accept **10
 
 ---
 
-*System requirements: macOS 10.14+. Witmotion WT9011DCL sensor required for full functionality. App download includes comprehensive setup guide, release build application, and desktop launcher. Touch ID/Face ID/Apple Watch authentication requires compatible Mac hardware. iOS and Android versions coming soon.*
+*System requirements: macOS 10.14+. Alarm-sensor WT9011DCL sensor required for full functionality. App download includes comprehensive setup guide, release build application, and desktop launcher. Touch ID/Face ID/Apple Watch authentication requires compatible Mac hardware. iOS and Android versions coming soon.*

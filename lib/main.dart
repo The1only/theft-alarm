@@ -202,7 +202,7 @@ class _BluetoothScanPageState extends State<BluetoothScanPage> {
             child: Column(
               children: [
                 const Text(
-                  'Scan for Witmotion devices',
+                  'Scan for Alarm Sensor devices',
                   style: TextStyle(fontSize: 18),
                 ),
                 const SizedBox(height: 16),
@@ -246,7 +246,7 @@ class _BluetoothScanPageState extends State<BluetoothScanPage> {
                         Icon(Icons.sensors_off, size: 64, color: Colors.grey),
                         SizedBox(height: 16),
                         Text(
-                          'No Witmotion devices found',
+                          'No Alarm Sensor devices found',
                           style: TextStyle(fontSize: 16, color: Colors.grey),
                         ),
                         SizedBox(height: 8),
@@ -343,6 +343,8 @@ class _AlarmPageState extends State<AlarmPage> {
   String sleepStatus = '';
   bool requiresSudo = false;
   double originalVolume = 0.5; // Store original system volume
+  double currentVolume = 0.5; // Current system volume for display
+  Timer? volumeMonitorTimer; // Monitor volume changes
 
   bool isConnected = false;
   String connectionStatus = 'Connecting...';
@@ -352,16 +354,40 @@ class _AlarmPageState extends State<AlarmPage> {
     super.initState();
     _setupConnection();
     _captureInitialVolume();
+    _startVolumeMonitoring();
   }
 
   void _captureInitialVolume() async {
     try {
       originalVolume = await VolumeController.getVolume();
+      currentVolume = originalVolume;
       print('💾 Initial volume captured: ${(originalVolume * 100).round()}%');
+      if (mounted) {
+        setState(() {});
+      }
     } catch (e) {
       print('⚠️ Failed to capture initial volume: $e');
       originalVolume = 0.5; // fallback
+      currentVolume = 0.5;
     }
+  }
+
+  void _startVolumeMonitoring() {
+    // Monitor volume every 2 seconds to update UI
+    volumeMonitorTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+      try {
+        double vol = await VolumeController.getVolume();
+        if (vol != currentVolume) {
+          if (mounted) {
+            setState(() {
+              currentVolume = vol;
+            });
+          }
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+    });
   }
 
   void _setupConnection() async {
@@ -639,7 +665,21 @@ class _AlarmPageState extends State<AlarmPage> {
     // Update the original volume to current system volume when arming
     try {
       originalVolume = await VolumeController.getVolume();
+      currentVolume = originalVolume;
       print('💾 Volume captured on arm: ${(originalVolume * 100).round()}%');
+      
+      // Warn if volume is too low (iOS cannot change system volume)
+      if (io.Platform.isIOS && originalVolume < 0.8) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('⚠️ Volume is ${(originalVolume * 100).round()}% - Please set to 100% using iPhone volume buttons'),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
     } catch (e) {
       print('⚠️ Failed to capture volume on arm: $e');
     }
@@ -677,27 +717,31 @@ class _AlarmPageState extends State<AlarmPage> {
         // Start tamper detection - check if sensor stops sending data
         _startTamperDetection();
         
-        // Prevent laptop from sleeping while alarm is armed
-        VolumeController.preventSleep().then((success) {
-          if (success) {
-            print('🛌 Sleep prevention activated - laptop will stay awake when closed');
-            
-            // Check if system-level sleep is already disabled
-            VolumeController.checkSystemSleepDisabled().then((isDisabled) {
-              setState(() {
-                if (isDisabled) {
-                  sleepStatus = '🔒 Enhanced sleep protection active';
-                  requiresSudo = false;
-                } else {
-                  sleepStatus = '💡 For maximum protection: sudo pmset -b disablesleep 1';
-                  requiresSudo = true;
-                }
+        // Prevent laptop from sleeping while alarm is armed (macOS only)
+        if (io.Platform.isMacOS) {
+          VolumeController.preventSleep().then((success) {
+            if (success) {
+              print('🛌 Sleep prevention activated - laptop will stay awake when closed');
+              
+              // Check if system-level sleep is already disabled
+              VolumeController.checkSystemSleepDisabled().then((isDisabled) {
+                setState(() {
+                  if (isDisabled) {
+                    sleepStatus = '🔒 Enhanced sleep protection active';
+                    requiresSudo = false;
+                  } else {
+                    sleepStatus = '💡 For maximum protection: sudo pmset -b disablesleep 1';
+                    requiresSudo = true;
+                  }
+                });
               });
-            });
-          } else {
-            print('❌ Failed to prevent sleep');
-          }
-        });
+            } else {
+              print('❌ Failed to prevent sleep');
+            }
+          });
+        } else if (io.Platform.isIOS) {
+          print('ℹ️ Sleep prevention disabled on iOS (causes system freeze)');
+        }
       }
     });
   }
@@ -714,27 +758,31 @@ class _AlarmPageState extends State<AlarmPage> {
     // Restore volume if it was changed (in case alarm was triggered)
     _restoreVolume();
     
-    // Allow laptop to sleep normally again
-    VolumeController.allowSleep().then((success) {
-      if (success) {
-        print('😴 Sleep prevention disabled - laptop can sleep normally');
-        
-        // Check system sleep status on disarm
-        VolumeController.checkSystemSleepDisabled().then((isDisabled) {
-          setState(() {
-            if (isDisabled) {
-              sleepStatus = '💡 To restore normal battery sleep: sudo pmset -b disablesleep 0';
-              requiresSudo = true;
-            } else {
-              sleepStatus = '';
-              requiresSudo = false;
-            }
+    // Allow laptop to sleep normally again (macOS only)
+    if (io.Platform.isMacOS) {
+      VolumeController.allowSleep().then((success) {
+        if (success) {
+          print('😴 Sleep prevention disabled - laptop can sleep normally');
+          
+          // Check system sleep status on disarm
+          VolumeController.checkSystemSleepDisabled().then((isDisabled) {
+            setState(() {
+              if (isDisabled) {
+                sleepStatus = '💡 To restore normal battery sleep: sudo pmset -b disablesleep 0';
+                requiresSudo = true;
+              } else {
+                sleepStatus = '';
+                requiresSudo = false;
+              }
+            });
           });
-        });
-      } else {
-        print('❌ Failed to allow sleep');
-      }
-    });
+        } else {
+          print('❌ Failed to allow sleep');
+        }
+      });
+    } else if (io.Platform.isIOS) {
+      print('ℹ️ Sleep prevention was not used on iOS');
+    }
     
     setState(() {
       alarmArmed = false;
@@ -783,6 +831,7 @@ class _AlarmPageState extends State<AlarmPage> {
     alarmTimer?.cancel();
     countdownTimer?.cancel();
     tamperDetectionTimer?.cancel();
+    volumeMonitorTimer?.cancel();
     audioPlayer.dispose();
     characteristicSubscription?.cancel();
     widget.device.disconnect();
@@ -1023,6 +1072,54 @@ class _AlarmPageState extends State<AlarmPage> {
               ),
 
               const SizedBox(height: 32),
+
+              // Volume Status Warning (iOS only)
+              if (io.Platform.isIOS)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: currentVolume < 0.8 ? Colors.orange.shade50 : Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: currentVolume < 0.8 ? Colors.orange : Colors.green,
+                      width: 2,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            currentVolume < 0.8 ? Icons.volume_down : Icons.volume_up,
+                            color: currentVolume < 0.8 ? Colors.orange : Colors.green,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'System Volume: ${(currentVolume * 100).round()}%',
+                            style: TextStyle(
+                              color: currentVolume < 0.8 ? Colors.orange : Colors.green,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (currentVolume < 0.8) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          '⚠️ Use iPhone volume buttons to set to 100%',
+                          style: TextStyle(
+                            color: Colors.orange[700],
+                            fontSize: 12,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
 
               // Connection Status
               Container(

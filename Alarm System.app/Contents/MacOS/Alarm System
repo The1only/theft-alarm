@@ -139,7 +139,7 @@ if [[ "$0" == *".app/Contents/MacOS/"* ]]; then
 fi
 
 # Use the full path to Flutter that we know works
-FLUTTER_PATH="/tmp/flutter/bin/flutter"
+FLUTTER_PATH="//Users/terjenilsen/flutter/bin/flutter"
 
 # Check if Flutter exists at the expected location
 if [[ ! -f "$FLUTTER_PATH" ]]; then
@@ -160,11 +160,12 @@ echo "$(date): Script reached app launch section" >> /tmp/alarm_debug.log
 PROJECT_DIR="$(pwd)"
 echo "$(date): Using project directory: $PROJECT_DIR" >> /tmp/alarm_debug.log
 
-# Check for release build first
-RELEASE_APP="$PROJECT_DIR/build/macos/Build/Products/Release/Alarm.app"
-echo "$(date): Checking for release at: $RELEASE_APP" >> /tmp/alarm_debug.log
+# Check if we're running from within an app bundle
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-if [[ -d "$RELEASE_APP" ]]; then
+# Always use the build directory app (embedded apps have TCC permission issues)
+if [[ -d "$PROJECT_DIR/build/macos/Build/Products/Release/Alarm.app" ]]; then
+    RELEASE_APP="$PROJECT_DIR/build/macos/Build/Products/Release/Alarm.app"
     echo "🚀 Launching Alarm System (Release Version)..."
     echo "$(date): Found release build at $RELEASE_APP" >> /tmp/alarm_debug.log
     

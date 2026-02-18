@@ -35,14 +35,10 @@
 			<key>UIWindowSceneSessionRoleApplication</key>
 			<array>
 				<dict>
-					<key>UISceneClassName</key>
-					<string>UIWindowScene</string>
 					<key>UISceneConfigurationName</key>
-					<string>flutter</string>
+					<string>Default Configuration</string>
 					<key>UISceneDelegateClassName</key>
-					<string>FlutterSceneDelegate</string>
-					<key>UISceneStoryboardFile</key>
-					<string>Main</string>
+					<string>FlutterViewController</string>
 				</dict>
 			</array>
 		</dict>
@@ -70,5 +66,12 @@
 	<string>This app needs Bluetooth access to connect to your IMU sensor</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>This app needs Bluetooth access to connect to your IMU sensor</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>This app uses Face ID or Touch ID to authenticate before stopping the alarm</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+		<string>audio</string>
+	</array>
 </dict>
 </plist>

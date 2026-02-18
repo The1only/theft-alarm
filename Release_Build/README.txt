@@ -36,7 +36,7 @@ FEATURES:
 REQUIREMENTS:
 -------------
 - macOS (tested on current version)
-- Witmotion WT9011DCL IMU sensor
+- Alarm-sensor WT9011DCL IMU 
 - Bluetooth enabled
 - Admin password (for sleep prevention)
 
