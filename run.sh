@@ -160,11 +160,46 @@ echo "$(date): Script reached app launch section" >> /tmp/alarm_debug.log
 PROJECT_DIR="$(pwd)"
 echo "$(date): Using project directory: $PROJECT_DIR" >> /tmp/alarm_debug.log
 
-# Check if we're running from within an app bundle
+# Check if we're running from within an app bundle (embedded)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+EMBEDDED_APP="$SCRIPT_DIR/../Resources/Alarm.app"
 
-# Always use the build directory app (embedded apps have TCC permission issues)
-if [[ -d "$PROJECT_DIR/build/macos/Build/Products/Release/Alarm.app" ]]; then
+# Check for embedded release build first (when running from app bundle)
+if [[ -d "$EMBEDDED_APP" ]]; then
+    echo "🚀 Launching Alarm System (Embedded Release)..."
+    echo "$(date): Found embedded release at $EMBEDDED_APP" >> /tmp/alarm_debug.log
+    
+    # Launch the embedded app
+    open "$EMBEDDED_APP"
+    
+    # Wait for the app to close
+    echo "⏳ Waiting for Alarm System to close..."
+    echo "$(date): Waiting for app to close" >> /tmp/alarm_debug.log
+    
+    # Give it a moment to start
+    sleep 2
+    
+    # Wait for the app process to end
+    while pgrep -f "Alarm.app" > /dev/null 2>&1; do
+        sleep 1
+    done
+    
+    echo "$(date): App closed, restoring sleep" >> /tmp/alarm_debug.log
+    echo ""
+    echo "🔄 Restoring sleep settings..."
+    echo "⚠️  Admin authentication required to restore sleep settings"
+    
+    # Restore sleep settings
+    osascript -e 'do shell script "pmset -b disablesleep 0" with administrator privileges' && \
+        echo "✅ Sleep settings restored" || \
+        echo "❌ Failed to restore sleep - you may need to run: sudo pmset -b disablesleep 0"
+    
+    echo "$(date): Sleep restoration complete" >> /tmp/alarm_debug.log
+    echo ""
+    echo "👋 Alarm System closed"
+
+# Check for release build in project directory
+elif [[ -d "$PROJECT_DIR/build/macos/Build/Products/Release/Alarm.app" ]]; then
     RELEASE_APP="$PROJECT_DIR/build/macos/Build/Products/Release/Alarm.app"
     echo "🚀 Launching Alarm System (Release Version)..."
     echo "$(date): Found release build at $RELEASE_APP" >> /tmp/alarm_debug.log

@@ -30,5 +30,9 @@
     <false/>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>This app needs Bluetooth access to connect to Witmotion IMU sensors for motion detection</string>
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>This app needs Bluetooth access to connect to Witmotion IMU sensors for motion detection</string>
 </dict>
 </plist>
