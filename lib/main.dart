@@ -7,6 +7,8 @@ import 'dart:typed_data';
 import 'dart:math' as math;
 import 'dart:io' as io;
 
+const String appVersion = '1.1.0';
+
 void main() {
   // Disable verbose Bluetooth logging
   FlutterBluePlus.setLogLevel(LogLevel.none);
@@ -1188,6 +1190,17 @@ class _AlarmPageState extends State<AlarmPage> {
                       ),
                     ),
                   ],
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Version Number
+              Text(
+                'Version $appVersion',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
                 ),
               ),
             ],
