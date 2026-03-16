@@ -604,7 +604,7 @@ class _AlarmPageState extends State<AlarmPage> {
     }
   }
 
-  void _stopAlarm() async {
+  Future<bool> _stopAlarm() async {
     // Require authentication to stop alarm
     print('🔐 Requesting authentication to stop alarm...');
     
@@ -624,7 +624,7 @@ class _AlarmPageState extends State<AlarmPage> {
           ),
         );
       }
-      return; // Don't stop alarm if authentication fails
+      return false; // Don't stop alarm if authentication fails
     }
     
     print('✅ Authentication successful - stopping alarm');
@@ -646,6 +646,8 @@ class _AlarmPageState extends State<AlarmPage> {
     print('🛑 Stopping alarm and disarming to prevent retriggering');
     await Future.delayed(const Duration(milliseconds: 100)); // Brief delay to ensure alarm stops
     _disarmAlarm();
+    
+    return true; // Authentication successful
   }
 
   void _restoreVolume() async {
@@ -746,7 +748,31 @@ class _AlarmPageState extends State<AlarmPage> {
     });
   }
 
-  void _disarmAlarm() async {
+  Future<bool> _disarmAlarm() async {
+    // Require authentication to disarm alarm
+    print('🔐 Requesting authentication to disarm alarm...');
+    
+    bool authenticated = await AuthenticationController.authenticate(
+      'Authenticate to disarm the alarm'
+    );
+    
+    if (!authenticated) {
+      print('❌ Authentication failed - alarm remains armed');
+      // Show error message to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Authentication required to disarm alarm'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return false; // Don't disarm if authentication fails
+    }
+    
+    print('✅ Authentication successful - disarming alarm');
+    
     alarmTimer?.cancel();
     alarmTimer = null;
     countdownTimer?.cancel();
@@ -794,6 +820,8 @@ class _AlarmPageState extends State<AlarmPage> {
       baselineAccelMagnitude = 1.0; // Reset to default baseline
       baselineAttMagnitude = 1.0; // Reset to default baseline
     });
+    
+    return true; // Authentication successful
   }
 
   void _startTamperDetection() {
@@ -1046,11 +1074,23 @@ class _AlarmPageState extends State<AlarmPage> {
                 height: 50,
                 child: OutlinedButton.icon(
                   onPressed: () async {
-                    // Stop any alarms
+                    // If alarm is armed, require authentication to disarm before exiting
                     if (alarmArmed) {
-                      _disarmAlarm();
+                      bool disarmed = await _disarmAlarm();
+                      if (!disarmed) {
+                        print('❌ Cannot exit - authentication failed');
+                        return;
+                      }
                     }
-                    _stopAlarm();
+                    
+                    // Stop any alarms if triggered
+                    if (alarmTriggered) {
+                      bool stopped = await _stopAlarm();
+                      if (!stopped) {
+                        print('❌ Cannot exit - authentication failed');
+                        return;
+                      }
+                    }
                     
                     // Disconnect device
                     print('👋 User requested app exit');

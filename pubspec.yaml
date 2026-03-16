@@ -2,7 +2,7 @@ name: alarm
 description: "Flutter-based theft alarm system with Alarm-sensor IMU motion detection."
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
